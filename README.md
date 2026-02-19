@@ -4,6 +4,10 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
+## 📊 页面预览
+
+![监控面板截图](screenshot.png)
+
 ## 📖 项目简介
 
 这是一个面向 Kubernetes 集群的 AI 推理服务监控平台，专为 GPU 推理场景设计。提供主机资源、GPU 状态、K8s Pod 状态的全方位实时监控，并支持智能告警。
