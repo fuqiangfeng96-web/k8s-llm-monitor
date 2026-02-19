@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智算监控中心</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh; color: #fff; padding: 20px;
+        }
+        .header {
+            text-align: center; margin-bottom: 25px;
+            position: relative;
+        }
+        .header-content {
+            display: inline-flex;
+            align-items: center;
+            gap: 15px;
+            text-align: left;
+        }
+        .logo {
+            width: 50px;
+            height: 50px;
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        .header h1 {
+            font-size: 1.6rem;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0;
+        }
+        .header .time { color: #666; margin-top: 3px; font-size: 0.85rem; }
+        
+        /* 告警标签 */
+        .alert-badges {
+            position: absolute;
+            top: 0;
+            right: 0;
+            display: flex;
+            gap: 10px;
+        }
+        .alert-badge {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .alert-badge:hover {
+            transform: scale(1.05);
+        }
+        .alert-badge.minor {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.3);
+        }
+        .alert-badge.serious {
+            background: rgba(249, 115, 22, 0.2);
+            color: #f97316;
+            border: 1px solid rgba(249, 115, 22, 0.3);
+        }
+        .alert-badge.critical {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            animation: pulse-critical 2s infinite;
+        }
+        @keyframes pulse-critical {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+        }
+        .alert-badge .count {
+            background: rgba(255,255,255,0.2);
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+        }
+        
+        /* 告警弹窗 */
+        .alert-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .alert-modal.active {
+            display: flex;
+        }
+        .alert-modal-content {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border-radius: 16px;
+            padding: 25px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .alert-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .alert-modal-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+        .alert-modal-close {
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .alert-item {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            border-left: 4px solid;
+        }
+        .alert-item.minor {
+            background: rgba(251, 191, 36, 0.1);
+            border-color: #fbbf24;
+        }
+        .alert-item.serious {
+            background: rgba(249, 115, 22, 0.1);
+            border-color: #f97316;
+        }
+        .alert-item.critical {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: #ef4444;
+        }
+        .alert-item-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .alert-item-minor .alert-item-title { color: #fbbf24; }
+        .alert-item-serious .alert-item-title { color: #f97316; }
+        .alert-item-critical .alert-item-title { color: #ef4444; }
+        .alert-item-desc {
+            color: #aaa;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+        .alert-item-fix {
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: #4ade80;
+        }
+        .alert-item-fix strong {
+            color: #fff;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            max-width: 1600px;
+            margin: 0 auto 20px;
+        }
+        
+        .card {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .card h3 {
+            font-size: 0.85rem; color: #888; margin-bottom: 10px;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .card h3 .icon { font-size: 1rem; }
+        
+        .metric-card {
+            text-align: center;
+            padding: 20px 10px;
+        }
+        .metric-value {
+            font-size: 2rem; font-weight: 700;
+            background: linear-gradient(135deg, #00d4ff, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .metric-label { color: #666; font-size: 0.8rem; margin-top: 5px; }
+        
+        .chart-card {
+            grid-column: span 2;
+        }
+        .chart-container {
+            position: relative;
+            height: 180px;
+        }
+        
+        .status-dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: #22c55e; margin-left: auto;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+        
+        .full-width { grid-column: span 4; }
+        
+        table {
+            width: 100%; border-collapse: collapse;
+        }
+        th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        th { color: #666; font-weight: 500; font-size: 0.75rem; }
+        td { font-size: 0.8rem; }
+        
+        .status-badge {
+            padding: 3px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 500;
+        }
+        .status-running { background: rgba(34,197,94,0.15); color: #22c55e; }
+        .status-pending { background: rgba(251,191,36,0.15); color: #fbbf24; }
+        .status-failed { background: rgba(239,68,68,0.15); color: #ef4444; }
+        
+        .scroll-table { max-height: 250px; overflow-y: auto; }
+        .scroll-table::-webkit-scrollbar { width: 4px; }
+        .scroll-table::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+        
+        .refresh-info {
+            text-align: center; margin-top: 15px; color: #444; font-size: 0.75rem;
+        }
+        
+        @media (max-width: 1200px) {
+            .grid { grid-template-columns: repeat(2, 1fr); }
+            .chart-card { grid-column: span 2; }
+            .full-width { grid-column: span 2; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <img src="/logo.svg" alt="Logo" class="logo">
+            <div>
+                <h1>🧠 智算监控中心</h1>
+                <div class="time" id="currentTime"></div>
+            </div>
+        </div>
+        <!-- 告警标签 -->
+        <div class="alert-badges">
+            <div class="alert-badge minor" onclick="showAlertModal('minor')">
+                轻微 <span class="count" id="minorCount">0</span>
+            </div>
+            <div class="alert-badge serious" onclick="showAlertModal('serious')">
+                严重 <span class="count" id="seriousCount">0</span>
+            </div>
+            <div class="alert-badge critical" onclick="showAlertModal('critical')">
+                紧急 <span class="count" id="criticalCount">0</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 实时指标 -->
+    <div class="grid">
+        <div class="card metric-card">
+            <h3><span class="icon">⚡</span> CPU</h3>
+            <div class="metric-value" id="cpuValue">-</div>
+            <div class="metric-label">使用率</div>
+        </div>
+        <div class="card metric-card">
+            <h3><span class="icon">🧠</span> 内存</h3>
+            <div class="metric-value" id="memValue">-</div>
+            <div class="metric-label">使用率</div>
+        </div>
+        <div class="card metric-card">
+            <h3><span class="icon">💾</span> 磁盘</h3>
+            <div class="metric-value" id="diskValue">-</div>
+            <div class="metric-label">使用率</div>
+        </div>
+        <div class="card metric-card">
+            <h3><span class="icon">🎮</span> GPU</h3>
+            <div class="metric-value" id="gpuValue">-</div>
+            <div class="metric-label" id="gpuLabel">使用率</div>
+        </div>
+        
+        <!-- CPU 曲线 -->
+        <div class="card chart-card">
+            <h3><span class="icon">📈</span> CPU 使用率 <span class="status-dot"></span></h3>
+            <div class="chart-container">
+                <canvas id="cpuChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- 内存曲线 -->
+        <div class="card chart-card">
+            <h3><span class="icon">📈</span> 内存使用率 <span class="status-dot"></span></h3>
+            <div class="chart-container">
+                <canvas id="memChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- 磁盘曲线 -->
+        <div class="card chart-card">
+            <h3><span class="icon">📈</span> 磁盘使用率 <span class="status-dot"></span></h3>
+            <div class="chart-container">
+                <canvas id="diskChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- GPU 曲线 -->
+        <div class="card chart-card">
+            <h3><span class="icon">📈</span> GPU 状态 <span class="status-dot"></span></h3>
+            <div class="chart-container">
+                <canvas id="gpuChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Pod 列表 -->
+        <div class="card full-width">
+            <h3><span class="icon">📦</span> Pod 状态 <span class="status-dot" id="podStatus"></span></h3>
+            <div class="scroll-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>命名空间</th>
+                            <th>Pod 名称</th>
+                            <th>状态</th>
+                            <th>重启</th>
+                            <th>运行时间</th>
+                        </tr>
+                    </thead>
+                    <tbody id="podTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="refresh-info">
+        实时指标 5秒刷新 | 历史曲线 30分钟数据 | <span id="lastUpdate">-</span>
+    </div>
+
+    <!-- 告警弹窗 -->
+    <div class="alert-modal" id="alertModal" onclick="closeAlertModal(event)">
+        <div class="alert-modal-content" onclick="event.stopPropagation()">
+            <div class="alert-modal-header">
+                <div class="alert-modal-title" id="alertModalTitle">告警详情</div>
+                <button class="alert-modal-close" onclick="closeAlertModal()">&times;</button>
+            </div>
+            <div id="alertList"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '';
+        
+        // Chart.js 配置 - 添加鼠标悬停显示百分比数值
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 500 },
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            scales: {
+                x: {
+                    display: true,
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#666', maxTicksLimit: 8, font: { size: 10 } }
+                },
+                y: {
+                    display: true,
+                    min: 0, max: 100,
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#666', callback: v => v + '%', font: { size: 10 } }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    enabled: true,
+                    backgroundColor: 'rgba(0,0,0,0.85)',
+                    titleColor: '#fff',
+                    bodyColor: '#ccc',
+                    borderColor: 'rgba(255,255,255,0.1)',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: false,
+                    callbacks: {
+                        title: function(context) {
+                            return context[0].label;
+                        },
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            return context.dataset.label + ': ' + value.toFixed(1) + '%';
+                        }
+                    }
+                }
+            },
+            elements: {
+                point: { radius: 0, hoverRadius: 5 },
+                line: { tension: 0.4, borderWidth: 2 }
+            }
+        };
+        
+        // GPU 图表配置 - 双Y轴
+        const gpuChartOptions = {
+            ...chartOptions,
+            scales: {
+                x: chartOptions.scales.x,
+                y: { ...chartOptions.scales.y, position: 'left', title: { display: true, text: '利用率 %', color: '#666' } },
+                y1: { position: 'right', min: 0, grid: { display: false }, title: { display: true, text: '显存 MB', color: '#666' }, ticks: { color: '#666' } }
+            },
+            plugins: {
+                ...chartOptions.plugins,
+                tooltip: {
+                    ...chartOptions.plugins.tooltip,
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            if (context.dataset.yAxisID === 'y1') {
+                                return '显存: ' + value.toFixed(0) + ' MB';
+                            }
+                            return context.dataset.label + ': ' + value.toFixed(1) + '%';
+                        }
+                    }
+                }
+            }
+        };
+        
+        const colors = {
+            cpu: { bg: 'rgba(0, 212, 255, 0.1)', border: '#00d4ff' },
+            mem: { bg: 'rgba(124, 58, 237, 0.1)', border: '#7c3aed' },
+            disk: { bg: 'rgba(34, 197, 94, 0.1)', border: '#22c55e' },
+            gpu: { bg: 'rgba(251, 191, 36, 0.1)', border: '#fbbf24' }
+        };
+        
+        const cpuChart = new Chart(document.getElementById('cpuChart'), {
+            type: 'line',
+            data: { labels: [], datasets: [{ data: [], ...colors.cpu, fill: true }] },
+            options: chartOptions
+        });
+        
+        const memChart = new Chart(document.getElementById('memChart'), {
+            type: 'line',
+            data: { labels: [], datasets: [{ data: [], ...colors.mem, fill: true }] },
+            options: chartOptions
+        });
+        
+        const diskChart = new Chart(document.getElementById('diskChart'), {
+            type: 'line',
+            data: { labels: [], datasets: [{ data: [], ...colors.disk, fill: true }] },
+            options: chartOptions
+        });
+        
+        const gpuChart = new Chart(document.getElementById('gpuChart'), {
+            type: 'line',
+            data: { 
+                labels: [], 
+                datasets: [
+                    { label: 'GPU利用率', data: [], borderColor: '#fbbf24', backgroundColor: 'rgba(251, 191, 36, 0.1)', fill: true, yAxisID: 'y' },
+                    { label: '显存', data: [], borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, yAxisID: 'y1' }
+                ] 
+            },
+            options: gpuChartOptions
+        });
+        
+        // 获取实时指标
+        async function fetchRealtime() {
+            try {
+                const [host, gpu] = await Promise.all([
+                    fetch('/api/host/metrics').then(r => r.json()),
+                    fetch('/api/gpu/metrics').then(r => r.json())
+                ]);
+                
+                document.getElementById('cpuValue').textContent = host.cpu.percent + '%';
+                document.getElementById('memValue').textContent = host.memory.percent + '%';
+                document.getElementById('diskValue').textContent = host.disk.percent + '%';
+                
+                if (gpu.length > 0) {
+                    document.getElementById('gpuValue').textContent = gpu[0].utilization + '%';
+                    document.getElementById('gpuLabel').textContent = `${gpu[0].memoryUsed}/${gpu[0].memoryTotal} MB`;
+                }
+            } catch (e) { console.error('Realtime error:', e); }
+        }
+        
+        // 获取历史曲线
+        async function fetchHistory() {
+            try {
+                const data = await fetch('/api/history').then(r => r.json());
+                
+                cpuChart.data.labels = data.cpu.labels;
+                cpuChart.data.datasets[0].data = data.cpu.data;
+                cpuChart.update('none');
+                
+                memChart.data.labels = data.memory.labels;
+                memChart.data.datasets[0].data = data.memory.data;
+                memChart.update('none');
+                
+                diskChart.data.labels = data.disk.labels;
+                diskChart.data.datasets[0].data = data.disk.data;
+                diskChart.update('none');
+                
+                gpuChart.data.labels = data.gpuUtil.labels;
+                gpuChart.data.datasets[0].data = data.gpuUtil.data;
+                gpuChart.data.datasets[1].data = data.gpuMem.data;
+                gpuChart.update('none');
+            } catch (e) { console.error('History error:', e); }
+        }
+        
+        // 获取 Pod 状态
+        async function fetchPods() {
+            try {
+                const pods = await fetch('/api/k8s/pods').then(r => r.json());
+                const tbody = document.getElementById('podTableBody');
+                tbody.innerHTML = '';
+                
+                let allRunning = true;
+                pods.forEach(pod => {
+                    let cls = 'status-running', txt = 'Running';
+                    if (pod.status === 'Pending') { cls = 'status-pending'; txt = 'Pending'; allRunning = false; }
+                    else if (pod.status === 'Failed' || pod.status === 'Error') { cls = 'status-failed'; txt = 'Failed'; allRunning = false; }
+                    tbody.innerHTML += `<tr><td>${pod.namespace}</td><td>${pod.name}</td><td><span class="status-badge ${cls}">${txt}</span></td><td>${pod.restarts}</td><td>${pod.age}</td></tr>`;
+                });
+                document.getElementById('podStatus').style.background = allRunning ? '#22c55e' : '#f59e0b';
+            } catch (e) { console.error('Pods error:', e); }
+        }
+        
+        // 获取告警
+        async function fetchAlerts() {
+            try {
+                const alerts = await fetch('/api/alerts').then(r => r.json());
+                document.getElementById('minorCount').textContent = alerts.minor.length;
+                document.getElementById('seriousCount').textContent = alerts.serious.length;
+                document.getElementById('criticalCount').textContent = alerts.critical.length;
+                
+                // 存储当前告警数据
+                window.currentAlerts = alerts;
+            } catch (e) { console.error('Alerts error:', e); }
+        }
+        
+        // 显示告警弹窗
+        function showAlertModal(type) {
+            const alerts = window.currentAlerts || { minor: [], serious: [], critical: [] };
+            const alertData = alerts[type] || [];
+            const titles = { minor: '⚠️ 轻微告警', serious: '🚨 严重告警', critical: '🔥 紧急告警' };
+            
+            document.getElementById('alertModalTitle').textContent = titles[type];
+            
+            const list = document.getElementById('alertList');
+            if (alertData.length === 0) {
+                list.innerHTML = '<div style="text-align:center;color:#888;padding:20px;">暂无告警</div>';
+            } else {
+                list.innerHTML = alertData.map(alert => `
+                    <div class="alert-item ${type}">
+                        <div class="alert-item-title">
+                            ${alert.title}
+                        </div>
+                        <div class="alert-item-desc">${alert.desc}</div>
+                        <div class="alert-item-fix"><strong>修复建议：</strong>${alert.fix}</div>
+                    </div>
+                `).join('');
+            }
+            
+            document.getElementById('alertModal').classList.add('active');
+        }
+        
+        // 关闭告警弹窗
+        function closeAlertModal(event) {
+            if (!event || event.target === document.getElementById('alertModal')) {
+                document.getElementById('alertModal').classList.remove('active');
+            }
+        }
+        
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleString('zh-CN');
+            document.getElementById('lastUpdate').textContent = '更新: ' + now.toLocaleTimeString('zh-CN');
+        }
+        
+        async function init() {
+            updateTime();
+            await Promise.all([fetchRealtime(), fetchHistory(), fetchPods(), fetchAlerts()]);
+            
+            // 定时刷新
+            setInterval(fetchRealtime, 5000);
+            setInterval(fetchHistory, 30000);
+            setInterval(fetchPods, 10000);
+            setInterval(fetchAlerts, 10000);
+            setInterval(updateTime, 1000);
+        }
+        
+        init();
+    </script>
+</body>
+</html>
