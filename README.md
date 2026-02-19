@@ -70,6 +70,12 @@
 - **数据源**: Prometheus + node_exporter + DCGM Exporter
 - **容器编排**: K3s / Kubernetes
 - **GPU 监控**: NVIDIA DCGM Exporter
+- **LLM 推理**: vLLM 指标采集
+
+## 📚 相关项目
+
+- **推理服务部署**: [k8s-llm-inference-platform](https://github.com/fuqiangfeng96-web/k8s-llm-inference-platform)
+- **可观测性方案**: [llm-observability-stack](https://github.com/fuqiangfeng96-web/llm-observability-stack)
 
 ## 🚀 快速开始
 
